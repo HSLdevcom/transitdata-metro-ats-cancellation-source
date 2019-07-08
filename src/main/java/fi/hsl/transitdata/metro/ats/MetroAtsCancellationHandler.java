@@ -1,8 +1,11 @@
-package fi.hsl.transitdata.omm;
+package fi.hsl.transitdata.metro.ats;
 
+import fi.hsl.common.pulsar.IMessageHandler;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.InternalMessages;
+import fi.hsl.transitdata.metro.ats.models.CancellationData;
+import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.slf4j.Logger;
@@ -16,8 +19,9 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class OmmCancellationHandler {
-    static final Logger log = LoggerFactory.getLogger(OmmCancellationHandler.class);
+public class MetroAtsCancellationHandler/* implements IMessageHandler*/ {
+    /*
+    static final Logger log = LoggerFactory.getLogger(MetroAtsCancellationHandler.class);
 
     String timeZone;
     private Producer<byte[]> producer;
@@ -26,50 +30,13 @@ public class OmmCancellationHandler {
         active, deleted
     }
 
-    static class CancellationData {
-        private InternalMessages.TripCancellation payload;
-        private long timestampEpochMs;
-        private String dvjId;
+    public void handleMessage(final Message message) throws Exception {
 
-        public CancellationData(InternalMessages.TripCancellation payload, long timestampEpochMs, String dvjId) {
-            this.payload = payload;
-            this.timestampEpochMs = timestampEpochMs;
-            this.dvjId = dvjId;
-        }
-
-        public String getDvjId() {
-            return dvjId;
-        }
-
-        public InternalMessages.TripCancellation getPayload() {
-            return payload;
-        }
-
-        public long getTimestamp() {
-            return timestampEpochMs;
-        }
     }
 
-    public static InternalMessages.TripCancellation.DeviationCasesType toTripCancellationDeviationCasesType(final String deviationCasesType) {
-        return InternalMessages.TripCancellation.DeviationCasesType.valueOf(deviationCasesType);
-    }
-
-    public static InternalMessages.TripCancellation.AffectedDeparturesType toTripCancellationAffectedDeparturesType(final String affectedDeparturesType) {
-        return InternalMessages.TripCancellation.AffectedDeparturesType.valueOf(affectedDeparturesType);
-    }
-
-    public static InternalMessages.Category toTripCancellationCategory(final String category) {
-        return InternalMessages.Category.valueOf(category);
-    }
-
-    public static InternalMessages.TripCancellation.SubCategory toTripCancellationSubCategory(final String subCategory) {
-        return InternalMessages.TripCancellation.SubCategory.valueOf(subCategory);
-    }
-
-
-    public OmmCancellationHandler(PulsarApplicationContext context) {
+    public MetroAtsCancellationHandler(PulsarApplicationContext context) {
         producer = context.getProducer();
-        timeZone = context.getConfig().getString("omm.timezone");
+        timeZone = context.getConfig().getString("application.timezone");
     }
 
     public Optional<Long> toUtcEpochMs(String localTimestamp) {
@@ -127,19 +94,11 @@ public class OmmCancellationHandler {
                 builder.setSchemaVersion(builder.getSchemaVersion());
                 final String dvjId = Long.toString(resultSet.getLong("DVJ_ID"));
                 builder.setTripId(dvjId);
-                
-                builder.setDeviationCasesType(toTripCancellationDeviationCasesType(resultSet.getString("DEVIATION_CASES_TYPE")));
-                builder.setAffectedDeparturesType(toTripCancellationAffectedDeparturesType(resultSet.getString("AFFECTED_DEPARTURES_TYPE")));
-                builder.setTitle(resultSet.getString("TITLE"));
-                final String description = resultSet.getString("DESCRIPTION");
-                builder.setDescription(description);
-                builder.setCategory(toTripCancellationCategory(resultSet.getString("CATEGORY")));
-                builder.setSubCategory(toTripCancellationSubCategory(resultSet.getString("SUB_CATEGORY")));
 
                 final InternalMessages.TripCancellation cancellation = builder.build();
 
-                log.debug("Read cancellation for route {} with  dvjId {} and description '{}'",
-                        routeId, dvjId, description);
+                log.debug("Read cancellation for route {} with dvjId {}",
+                        routeId, dvjId);
 
                 Timestamp timestamp = resultSet.getTimestamp("AFFECTED_DEPARTURES_LAST_MODIFIED"); //other option is to use DEVIATION_CASES_LAST_MODIFIED
                 Optional<Long> epochTimestamp = toUtcEpochMs(timestamp.toString());
@@ -224,5 +183,5 @@ public class OmmCancellationHandler {
             log.error("Failed to handle cancellation message", e);
         }
     }
-
+    */
 }
