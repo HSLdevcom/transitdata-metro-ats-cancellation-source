@@ -17,8 +17,8 @@ public class Main {
 
         try (final PulsarApplication app = PulsarApplication.newInstance(config)) {
             final PulsarApplicationContext context = app.getContext();
-            final CancellationFactory factory = new CancellationFactory(context);
-            final MessageHandler handler = new MessageHandler(context, factory);
+            final MetroCancellationFactory metroCancellationFactory = new MetroCancellationFactory();
+            final MessageHandler handler = new MessageHandler(context, metroCancellationFactory);
             log.info("Start handling the messages");
             app.launchWithHandler(handler);
         } catch (Exception e) {

@@ -15,24 +15,24 @@ public class MessageHandler implements IMessageHandler {
 
     private Consumer<byte[]> consumer;
     private Producer<byte[]> producer;
-    private CancellationFactory factory;
+    private MetroCancellationFactory metroCancellationFactory;
 
-    public MessageHandler(final PulsarApplicationContext context, final CancellationFactory factory) {
+    public MessageHandler(final PulsarApplicationContext context, final MetroCancellationFactory metroCancellationFactory) {
         consumer = context.getConsumer();
         producer = context.getProducer();
-        this.factory = factory;
+        this.metroCancellationFactory = metroCancellationFactory;
     }
 
     public void handleMessage(final Message received) throws Exception {
         try {
-            final Optional<InternalMessages.TripCancellation> maybeCancellation = factory.toCancellation(received);
-            if (maybeCancellation.isPresent()) {
-                final InternalMessages.TripCancellation cancellation = maybeCancellation.get();
+            final Optional<InternalMessages.TripCancellation> maybeTripCancellation = metroCancellationFactory.toTripCancellation(received);
+            if (maybeTripCancellation.isPresent()) {
+                final InternalMessages.TripCancellation cancellation = maybeTripCancellation.get();
                 final MessageId messageId = received.getMessageId();
                 final long timestamp = received.getEventTime();
                 sendPulsarMessage(messageId, cancellation, timestamp, cancellation.getTripId());
             } else {
-                log.warn("Received unexpected schema, ignoring.");
+                // Metro-estimate status was not CANCELED, not sending message.
                 ack(received.getMessageId()); //Ack so we don't receive it again
             }
         } catch (Exception e) {
