@@ -1,4 +1,4 @@
-# Transitdata-omm-cancellation-source
+# transitdata-metro-ats-cancellation-source
 
 This project is part of the [Transitdata Pulsar-pipeline](https://github.com/HSLdevcom/transitdata).
 
