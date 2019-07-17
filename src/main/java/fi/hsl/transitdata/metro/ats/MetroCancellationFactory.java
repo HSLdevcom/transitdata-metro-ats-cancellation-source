@@ -15,7 +15,7 @@ public class MetroCancellationFactory {
         try {
 
             final long timestamp = message.getEventTime();
-            // TODO: check if journey was cancelled previously but not anymore
+            // TODO: check if journey was cancelled previously but not anymore.
             return toTripCancellation(message.getData(), timestamp);
 
         } catch (Exception e) {
