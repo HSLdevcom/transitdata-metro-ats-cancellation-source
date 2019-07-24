@@ -34,8 +34,8 @@ public class Main {
             final MetroCancellationFactory metroCancellationFactory = new MetroCancellationFactory(redis, ttl);
             final MessageHandler handler = new MessageHandler(context, metroCancellationFactory);
 
-            log.info("Starting message repeating at {} seconds interval");
             final int repeatIntervalSeconds = config.getInt("application.repeatIntervalSeconds");
+            log.info("Starting message repeating at {} seconds interval", repeatIntervalSeconds);
             scheduler.scheduleAtFixedRate(() -> {
                 // TODO: is 1000 ok?
                 final List<String> metroCancellationKeys = redis.getKeys(MetroCancellationFactory.REDIS_PREFIX_METRO_CANCELLATION, 1000);
@@ -56,30 +56,30 @@ public class Main {
                             boolean isValid = true;
                             if (!metroCancellationMap.containsKey(MetroCancellationFactory.KEY_CANCELLATION_STATUS)) {
                                 isValid = false;
-                                log.error("Hash value for {} was not found for cached metro cancellation {}", MetroCancellationFactory.KEY_CANCELLATION_STATUS, metroCancellationKey);
+                                log.warn("Hash value for {} was not found for cached metro cancellation {}", MetroCancellationFactory.KEY_CANCELLATION_STATUS, metroCancellationKey);
                             }
                             if (!metroCancellationMap.containsKey(MetroCancellationFactory.KEY_TIMESTAMP)) {
                                 isValid = false;
-                                log.error("Hash value for {} was not found for cached metro cancellation {}", MetroCancellationFactory.KEY_TIMESTAMP, metroCancellationKey);
+                                log.warn("Hash value for {} was not found for cached metro cancellation {}", MetroCancellationFactory.KEY_TIMESTAMP, metroCancellationKey);
                             }
                             if (!dvjMap.containsKey(TransitdataProperties.KEY_ROUTE_NAME)) {
                                 isValid = false;
-                                log.error("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_ROUTE_NAME, k);
+                                log.warn("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_ROUTE_NAME, k);
                             }
                             if (!dvjMap.containsKey(TransitdataProperties.KEY_DIRECTION)) {
                                 isValid = false;
-                                log.error("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_DIRECTION, k);
+                                log.warn("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_DIRECTION, k);
                             }
                             if (!dvjMap.containsKey(TransitdataProperties.KEY_START_TIME)) {
                                 isValid = false;
-                                log.error("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_START_TIME, k);
+                                log.warn("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_START_TIME, k);
                             }
                             if (!dvjMap.containsKey(TransitdataProperties.KEY_OPERATING_DAY)) {
                                 isValid = false;
-                                log.error("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_OPERATING_DAY, k);
+                                log.warn("Hash value for {} was not found for cached dvj data {}", TransitdataProperties.KEY_OPERATING_DAY, k);
                             }
                             if (!isValid) {
-                                log.error("Not producing repeated metro cancellation because hash value was not found");
+                                log.warn("Not producing repeated metro cancellation because hash value was not found");
                                 return;
                             }
                             final String timestamp = metroCancellationMap.get(MetroCancellationFactory.KEY_TIMESTAMP);
@@ -87,7 +87,7 @@ public class Main {
                             try {
                                 timestampLong = Long.parseLong(timestamp);
                             } catch (Exception e) {
-                                log.error("Not producing repeated metro cancellation because {} is not valid long", MetroCancellationFactory.KEY_TIMESTAMP);
+                                log.warn("Not producing repeated metro cancellation because {} is not valid long", MetroCancellationFactory.KEY_TIMESTAMP);
                                 return;
                             }
                             final String status = metroCancellationMap.get(MetroCancellationFactory.KEY_CANCELLATION_STATUS);
@@ -100,7 +100,7 @@ public class Main {
                                 final InternalMessages.TripCancellation cancellation = maybeTripCancellation.get();
                                 handler.sendPulsarMessage(cancellation, timestampLong, dvjId);
                             } else {
-                                log.error("Not producing repeated metro cancellation because creating the message failed");
+                                log.warn("Not producing repeated metro cancellation because creating the message failed");
                                 return;
                             }
                         } else {

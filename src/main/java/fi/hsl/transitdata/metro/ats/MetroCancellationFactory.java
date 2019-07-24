@@ -95,7 +95,7 @@ public class MetroCancellationFactory {
         try {
             statusEnum = InternalMessages.TripCancellation.Status.valueOf(status);
         } catch (Exception e) {
-            log.error("{} is not valid cancellation status", KEY_CANCELLATION_STATUS);
+            log.warn("{} is not valid cancellation status", KEY_CANCELLATION_STATUS);
             return Optional.empty();
         }
         return createTripCancellation(dvjId, route, direction, startTime, startDate, statusEnum);
@@ -115,7 +115,7 @@ public class MetroCancellationFactory {
         try {
             directionInt = Integer.parseInt(direction);
         } catch (Exception e) {
-            log.error("{} is not valid integer", TransitdataProperties.KEY_DIRECTION);
+            log.warn("{} is not valid integer", TransitdataProperties.KEY_DIRECTION);
             return Optional.empty();
         }
         Integer.parseInt(direction);
@@ -139,7 +139,7 @@ public class MetroCancellationFactory {
     private static boolean validateString(final String key, final String value) {
         final boolean isValid = value != null && !value.isEmpty();
         if (!isValid) {
-            log.error("{} is not valid string");
+            log.warn("{} is not valid string");
         }
         return isValid;
     }
