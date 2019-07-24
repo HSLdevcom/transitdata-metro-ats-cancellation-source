@@ -49,7 +49,11 @@ public class MessageHandler implements IMessageHandler {
                 .thenRun(() -> {});
     }
 
-    private void sendPulsarMessage(final MessageId received, final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
+    public void sendPulsarMessage(final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
+        sendPulsarMessage(null, cancellation, timestamp, dvjId);
+    }
+
+    public void sendPulsarMessage(final MessageId received, final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
         producer.newMessage()
                 .key(dvjId)
                 .eventTime(timestamp)
@@ -69,7 +73,9 @@ public class MessageHandler implements IMessageHandler {
                                 cancellation.getStartDate());
                         //Does this become a bottleneck? Does pulsar send more messages before we ack the previous one?
                         //If yes we need to get rid of this
-                        ack(received);
+                        if (received != null) {
+                            ack(received);
+                        }
                     }
                 });
     }
