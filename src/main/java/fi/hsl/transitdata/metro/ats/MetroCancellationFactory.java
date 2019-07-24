@@ -1,6 +1,7 @@
 package fi.hsl.transitdata.metro.ats;
 
 import fi.hsl.common.redis.RedisUtils;
+import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.InternalMessages;
 import fi.hsl.common.transitdata.proto.MetroAtsProtos;
 import org.apache.pulsar.client.api.Message;
@@ -8,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -43,19 +45,16 @@ public class MetroCancellationFactory {
     private Optional<InternalMessages.TripCancellation> toTripCancellation(byte[] data, long timestamp) throws Exception {
         MetroAtsProtos.MetroEstimate metroEstimate = MetroAtsProtos.MetroEstimate.parseFrom(data);
         final String dvjId = metroEstimate.getDvjId();
-        InternalMessages.TripCancellation.Status status;
+        final InternalMessages.TripCancellation.Status status = getCancellationStatus(metroEstimate);
 
         // Check cache
         final String metroCancellationKey = formatMetroCancellationKey(dvjId);
-        final MetroAtsProtos.MetroProgress progress = metroEstimate.getJourneySectionprogress();
-        if (progress.equals(MetroAtsProtos.MetroProgress.CANCELLED)) {
-            status = InternalMessages.TripCancellation.Status.CANCELED;
+        if (status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
             setCacheValue(metroEstimate, metroCancellationKey, status, timestamp);
         } else {
             final Optional<Map<String, String>> maybeCachedMetroCancellation = redis.getValues(metroCancellationKey);
             if (maybeCachedMetroCancellation.isPresent()) {
                 // This is cancellation of cancellation
-                status = InternalMessages.TripCancellation.Status.RUNNING;
                 final Map<String, String> cachedMetroCancellation = maybeCachedMetroCancellation.get();
                 if (cachedMetroCancellation.containsKey(KEY_CANCELLATION_STATUS)) {
                     final InternalMessages.TripCancellation.Status cachedStatus = InternalMessages.TripCancellation.Status.valueOf(cachedMetroCancellation.get(KEY_CANCELLATION_STATUS));
@@ -73,17 +72,76 @@ public class MetroCancellationFactory {
             }
         }
 
-        // TripCancellation
+        return createTripCancellation(
+                dvjId,
+                metroEstimate.getRouteName(),
+                metroEstimate.getDirection(),
+                metroEstimate.getStartTime(),
+                metroEstimate.getOperatingDay(),
+                status
+        );
+    }
+
+    public static Optional<InternalMessages.TripCancellation> createTripCancellation(final String dvjId,
+                                                                                     final String route,
+                                                                                     final String direction,
+                                                                                     final String startTime,
+                                                                                     final String startDate,
+                                                                                     final String status) {
+        if (!validateString(KEY_CANCELLATION_STATUS, status)) {
+            return Optional.empty();
+        }
+        InternalMessages.TripCancellation.Status statusEnum;
+        try {
+            statusEnum = InternalMessages.TripCancellation.Status.valueOf(status);
+        } catch (Exception e) {
+            log.error("{} is not valid cancellation status", KEY_CANCELLATION_STATUS);
+            return Optional.empty();
+        }
+        return createTripCancellation(dvjId, route, direction, startTime, startDate, statusEnum);
+    }
+
+    public static Optional<InternalMessages.TripCancellation> createTripCancellation(final String dvjId,
+                                                                                     final String route,
+                                                                                     final String direction,
+                                                                                     final String startTime,
+                                                                                     final String startDate,
+                                                                                     final InternalMessages.TripCancellation.Status status) {
+        boolean isValid = true;
+        int directionInt;
+        isValid &= validateString(TransitdataProperties.KEY_DVJ_ID, dvjId);
+        isValid &= validateString(TransitdataProperties.KEY_ROUTE_NAME, route);
+        isValid &= validateString(TransitdataProperties.KEY_DIRECTION, direction);
+        try {
+            directionInt = Integer.parseInt(direction);
+        } catch (Exception e) {
+            log.error("{} is not valid integer", TransitdataProperties.KEY_DIRECTION);
+            return Optional.empty();
+        }
+        Integer.parseInt(direction);
+        isValid &= validateString(TransitdataProperties.KEY_START_TIME, startTime);
+        isValid &= validateString(TransitdataProperties.KEY_OPERATING_DAY, startDate);
+        if (!isValid) {
+            return Optional.empty();
+        }
+
         InternalMessages.TripCancellation.Builder builder = InternalMessages.TripCancellation.newBuilder();
         builder.setSchemaVersion(builder.getSchemaVersion());
         builder.setTripId(dvjId);
-        builder.setRouteId(metroEstimate.getRouteName());
-        builder.setDirectionId(Integer.parseInt(metroEstimate.getDirection()));
-        builder.setStartTime(metroEstimate.getStartTime());
-        builder.setStartDate(metroEstimate.getOperatingDay());
+        builder.setRouteId(route);
+        builder.setDirectionId(directionInt);
+        builder.setStartTime(startTime);
+        builder.setStartDate(startDate);
         builder.setStatus(status);
-
         return Optional.of(builder.build());
+    }
+
+    private static boolean validateString(final String key, final String value) {
+        final boolean isValid = value != null && !value.isEmpty();
+        if (!isValid) {
+            log.error("{} is not valid string");
+        }
+        return isValid;
     }
 
     public static String formatMetroCancellationKey(final String dvjId) {
@@ -98,15 +156,25 @@ public class MetroCancellationFactory {
         return (int) cacheTtlSeconds;
     }
 
-    private void setCacheValue(final MetroAtsProtos.MetroEstimate metroEstimate, final String key, final InternalMessages.TripCancellation.Status value, final long timestamp) {
+    private InternalMessages.TripCancellation.Status getCancellationStatus(final MetroAtsProtos.MetroEstimate metroEstimate) {
+        final MetroAtsProtos.MetroProgress progress = metroEstimate.getJourneySectionprogress();
+        return progress.equals(MetroAtsProtos.MetroProgress.CANCELLED) ?
+                InternalMessages.TripCancellation.Status.CANCELED :
+                InternalMessages.TripCancellation.Status.RUNNING;
+    }
+
+    private void setCacheValue(final MetroAtsProtos.MetroEstimate metroEstimate, final String key, final InternalMessages.TripCancellation.Status status, final long timestamp) {
         final int cacheTtlSeconds = getCacheTtlSeconds(metroEstimate);
         if (cacheTtlSeconds > 0) {
-            final String response = redis.setExpiringValue(key, value.toString(), cacheTtlSeconds);
+            final Map<String, String> data = new HashMap<>();
+            data.put(KEY_CANCELLATION_STATUS, status.toString());
+            data.put(KEY_TIMESTAMP, String.valueOf(timestamp));
+            final String response = redis.setExpiringValues(key, data, cacheTtlSeconds);
             if (!redis.checkResponse(response)) {
-                log.error("Failed to put key {} with value {} into cache", key, value);
+                log.error("Failed to set key {} into cache", key);
             }
         } else {
-            log.warn("Not putting key {} in into cache because TTL is negative {}", key, cacheTtlSeconds);
+            log.warn("Not setting key {} in into cache because TTL is negative {}", key, cacheTtlSeconds);
             // TODO: something might be wrong here because this trip should have ended already.
             // TODO: should return Optional.empty() because this trip has already ended?
         }
