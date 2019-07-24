@@ -174,7 +174,7 @@ public class MetroCancellationFactory {
                 log.error("Failed to set key {} into cache", key);
             }
         } else {
-            log.warn("Not setting key {} in into cache because TTL is negative {}", key, cacheTtlSeconds);
+            log.warn("Not setting key {} into cache because TTL is negative {}", key, cacheTtlSeconds);
             // TODO: something might be wrong here because this trip should have ended already.
             // TODO: should return Optional.empty() because this trip has already ended?
         }
