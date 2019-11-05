@@ -52,23 +52,30 @@ public class MetroCancellationFactory {
         if (status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
             setCacheValue(metroEstimate, metroCancellationKey, status, timestamp);
         } else {
-            final Optional<Map<String, String>> maybeCachedMetroCancellation = redis.getValues(metroCancellationKey);
-            if (maybeCachedMetroCancellation.isPresent()) {
-                // This is cancellation of cancellation
-                final Map<String, String> cachedMetroCancellation = maybeCachedMetroCancellation.get();
-                if (cachedMetroCancellation.containsKey(KEY_CANCELLATION_STATUS)) {
-                    final InternalMessages.TripCancellation.Status cachedStatus = InternalMessages.TripCancellation.Status.valueOf(cachedMetroCancellation.get(KEY_CANCELLATION_STATUS));
-                    // Only update cache if trip was previously cancelled
-                    if (cachedStatus.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
-                        setCacheValue(metroEstimate, metroCancellationKey, status, timestamp);
+            long redisQueryStartTime = System.currentTimeMillis();
+            try {
+                final Optional<Map<String, String>> maybeCachedMetroCancellation = redis.getValues(metroCancellationKey);
+                if (maybeCachedMetroCancellation.isPresent()) {
+                    // This is cancellation of cancellation
+                    final Map<String, String> cachedMetroCancellation = maybeCachedMetroCancellation.get();
+                    if (cachedMetroCancellation.containsKey(KEY_CANCELLATION_STATUS)) {
+                        final InternalMessages.TripCancellation.Status cachedStatus = InternalMessages.TripCancellation.Status.valueOf(cachedMetroCancellation.get(KEY_CANCELLATION_STATUS));
+                        // Only update cache if trip was previously cancelled
+                        if (cachedStatus.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
+                            setCacheValue(metroEstimate, metroCancellationKey, status, timestamp);
+                        }
+                    } else {
+                        log.warn("Hash value for {} is missing for cached metro cancellation {}", KEY_CANCELLATION_STATUS, metroCancellationKey);
+                        return Optional.empty();
                     }
                 } else {
-                    log.warn("Hash value for {} is missing for cached metro cancellation {}", KEY_CANCELLATION_STATUS, metroCancellationKey);
+                    // Ignoring because this is neither cancellation nor cancellation of cancellation
                     return Optional.empty();
                 }
-            } else {
-                // Ignoring because this is neither cancellation nor cancellation of cancellation
-                return Optional.empty();
+            } catch (Exception e) {
+                long elapsed = (System.currentTimeMillis() - redisQueryStartTime);
+                log.warn("Redis query took: {} ms", elapsed);
+                log.error("Failed to handle cancellation with metro dvjId: {}, key: {}", dvjId, metroCancellationKey, e);
             }
         }
 
