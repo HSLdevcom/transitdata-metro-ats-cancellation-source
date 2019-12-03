@@ -44,6 +44,11 @@ public class MetroCancellationFactory {
 
     private Optional<InternalMessages.TripCancellation> toTripCancellation(byte[] data, long timestamp) throws Exception {
         MetroAtsProtos.MetroEstimate metroEstimate = MetroAtsProtos.MetroEstimate.parseFrom(data);
+        //Do not produce cancellations for non-passenger metros
+        if (metroEstimate.hasTrainType() && metroEstimate.getTrainType() == MetroAtsProtos.MetroTrainType.T) {
+            return Optional.empty();
+        }
+        
         final String dvjId = metroEstimate.getDvjId();
         final InternalMessages.TripCancellation.Status status = getCancellationStatus(metroEstimate);
 
