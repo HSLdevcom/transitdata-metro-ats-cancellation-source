@@ -54,8 +54,15 @@ public class MetroCancellationFactory {
 
         // Check cache
         final String metroCancellationKey = formatMetroCancellationKey(dvjId);
+        final int cacheTtlSeconds = getCacheTtlSeconds(metroEstimate);
+        if (cacheTtlSeconds < 0 && status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
+            // TODO: make sure it's still ok to add cancellations of cancellations to the past
+            log.warn("Not creating cancellation {} into cache because TTL is negative {} i.e. cancellation was added to the past", metroCancellationKey, cacheTtlSeconds);
+            Optional.empty();
+        }
+
         if (status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
-            setCacheValue(metroEstimate, metroCancellationKey, status, timestamp);
+            setCacheValue(metroEstimate, metroCancellationKey, status, timestamp, cacheTtlSeconds);
         } else {
             long redisQueryStartTime = System.currentTimeMillis();
             try {
@@ -67,7 +74,7 @@ public class MetroCancellationFactory {
                         final InternalMessages.TripCancellation.Status cachedStatus = InternalMessages.TripCancellation.Status.valueOf(cachedMetroCancellation.get(KEY_CANCELLATION_STATUS));
                         // Only update cache if trip was previously cancelled
                         if (cachedStatus.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
-                            setCacheValue(metroEstimate, metroCancellationKey, status, timestamp);
+                            setCacheValue(metroEstimate, metroCancellationKey, status, timestamp, cacheTtlSeconds);
                         }
                     } else {
                         log.warn("Hash value for {} is missing for cached metro cancellation {}", KEY_CANCELLATION_STATUS, metroCancellationKey);
@@ -175,20 +182,13 @@ public class MetroCancellationFactory {
                 InternalMessages.TripCancellation.Status.RUNNING;
     }
 
-    private void setCacheValue(final MetroAtsProtos.MetroEstimate metroEstimate, final String key, final InternalMessages.TripCancellation.Status status, final long timestamp) {
-        final int cacheTtlSeconds = getCacheTtlSeconds(metroEstimate);
-        if (cacheTtlSeconds > 0) {
-            final Map<String, String> data = new HashMap<>();
-            data.put(KEY_CANCELLATION_STATUS, status.toString());
-            data.put(KEY_TIMESTAMP, String.valueOf(timestamp));
-            final String response = redis.setExpiringValues(key, data, cacheTtlSeconds);
-            if (!redis.checkResponse(response)) {
-                log.error("Failed to set key {} into cache", key);
-            }
-        } else {
-            log.warn("Not setting key {} into cache because TTL is negative {}", key, cacheTtlSeconds);
-            // TODO: something might be wrong here because this trip should have ended already.
-            // TODO: should return Optional.empty() because this trip has already ended?
+    private void setCacheValue(final MetroAtsProtos.MetroEstimate metroEstimate, final String key, final InternalMessages.TripCancellation.Status status, final long timestamp, final int cacheTtlSeconds) {
+        final Map<String, String> data = new HashMap<>();
+        data.put(KEY_CANCELLATION_STATUS, status.toString());
+        data.put(KEY_TIMESTAMP, String.valueOf(timestamp));
+        final String response = redis.setExpiringValues(key, data, cacheTtlSeconds);
+        if (!redis.checkResponse(response)) {
+            log.error("Failed to set key {} into cache", key);
         }
     }
 }
