@@ -54,8 +54,11 @@ public class MetroCancellationFactory {
 
         // Check cache
         final String metroCancellationKey = formatMetroCancellationKey(dvjId);
-        final int cacheTtlSeconds = getCacheTtlSeconds(metroEstimate);
-        if (cacheTtlSeconds < 0 && status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
+        final long timeToEndTimeSecs = getTimeToEndTimeSecs(metroEstimate);
+        final int cacheTtlSeconds = (int) timeToEndTimeSecs + cacheTtlOffsetSeconds;
+
+        // filter out cancellations that were made to the past
+        if (timeToEndTimeSecs < 0 && status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
             // TODO: make sure it's still ok to add cancellations of cancellations to the past
             log.warn("Not creating cancellation {} into cache because TTL is negative {} i.e. cancellation was added to the past", metroCancellationKey, cacheTtlSeconds);
             Optional.empty();
@@ -167,12 +170,11 @@ public class MetroCancellationFactory {
         return REDIS_PREFIX_METRO_CANCELLATION + dvjId;
     }
 
-    private int getCacheTtlSeconds(final MetroAtsProtos.MetroEstimate metroEstimate) {
+    private long getTimeToEndTimeSecs(final MetroAtsProtos.MetroEstimate metroEstimate) {
         final String endDateTime = metroEstimate.getEndTime();
         final long endMillis = Instant.parse(endDateTime).toEpochMilli();
         final long now = System.currentTimeMillis();
-        final long cacheTtlSeconds = ((endMillis - now) / 1000) + cacheTtlOffsetSeconds;
-        return (int) cacheTtlSeconds;
+        return (endMillis - now)/1000;
     }
 
     private InternalMessages.TripCancellation.Status getCancellationStatus(final MetroAtsProtos.MetroEstimate metroEstimate) {
