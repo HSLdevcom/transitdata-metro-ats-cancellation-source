@@ -61,7 +61,7 @@ public class MetroCancellationFactory {
         if (timeToEndTimeSecs < 0 && status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
             // TODO: make sure it's still ok to add cancellations of cancellations to the past
             log.warn("Not creating cancellation {} into cache because TTL is negative {} i.e. cancellation was added to the past", metroCancellationKey, cacheTtlSeconds);
-            Optional.empty();
+            return Optional.empty();
         }
 
         if (status.equals(InternalMessages.TripCancellation.Status.CANCELED)) {
