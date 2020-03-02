@@ -89,8 +89,8 @@ public class MetroCancellationFactory {
                 }
             } catch (Exception e) {
                 long elapsed = (System.currentTimeMillis() - redisQueryStartTime);
-                log.warn("Redis query took: {} ms", elapsed);
-                log.error("Failed to handle cancellation with metro dvjId: {}, key: {}", dvjId, metroCancellationKey, e);
+                log.error("Failed to handle possible cancellation of cancellation with metro dvjId: {}, key: {}, redis query took: {} ms", dvjId, metroCancellationKey, elapsed, e);
+                return Optional.empty();
             }
         }
 
