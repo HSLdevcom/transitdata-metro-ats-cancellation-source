@@ -70,7 +70,7 @@ public class MessageHandler implements IMessageHandler {
                     else {
                         log.info("Produced a cancellation for trip: " + cancellation.getRouteId() + "/" +
                                 cancellation.getDirectionId() + "-" + cancellation.getStartTime() + "-" +
-                                cancellation.getStartDate());
+                                cancellation.getStartDate() + " with status: " + cancellation.getStatus().toString());
                         //Does this become a bottleneck? Does pulsar send more messages before we ack the previous one?
                         //If yes we need to get rid of this
                         if (received != null) {
