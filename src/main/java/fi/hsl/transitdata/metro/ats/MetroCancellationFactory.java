@@ -36,7 +36,7 @@ public class MetroCancellationFactory {
             return toTripCancellation(message.getData(), timestamp);
 
         } catch (Exception e) {
-            log.warn("Failed to produce metro estimate trip cancellation", e);
+            log.warn("Failed to handle metroEstimate", e);
         }
 
         return Optional.empty();
@@ -48,7 +48,7 @@ public class MetroCancellationFactory {
         if (metroEstimate.hasTrainType() && metroEstimate.getTrainType() == MetroAtsProtos.MetroTrainType.T) {
             return Optional.empty();
         }
-        
+
         final String dvjId = metroEstimate.getDvjId();
         final InternalMessages.TripCancellation.Status status = getCancellationStatus(metroEstimate);
 
