@@ -104,5 +104,3 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           tags: 61366-redis-cluster
-          buildargs: |
-            GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
