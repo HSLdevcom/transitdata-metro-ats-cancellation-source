@@ -5,12 +5,15 @@
 #trigger only the compile step
 
 #The build container
-FROM maven:3.5.3-jdk-8-slim as BUILD
+FROM maven:3.8.6-openjdk-11-slim AS BUILD
 
 RUN mkdir -p /usr/src/app
 
 #Copy pom.xml file and download dependencies. This stage will be cached if the pom.xml file is not changed
 COPY pom.xml /usr/src/app
+
+ARG GITHUB_TOKEN
+ENV GITHUB_TOKEN=$GITHUB_TOKEN
 
 RUN mvn -f /usr/src/app/pom.xml dependency:resolve-plugins dependency:resolve clean package
 
@@ -23,7 +26,7 @@ RUN mvn -f /usr/src/app/pom.xml clean package
 
 #The container that actually runs our application.
 #TODO: switch to Alpine when it becomes available
-FROM openjdk:8-jre-slim
+FROM openjdk:11-jre-slim
 
 #Install curl for health check
 RUN apt-get update && apt-get install -y --no-install-recommends curl
