@@ -81,3 +81,22 @@ jobs:
           username: ${{ secrets.TRANSITDATA_DOCKERHUB_USER }}
           password: ${{ secrets.TRANSITDATA_DOCKERHUB_TOKEN }}
           tags: aks-dev
+  build-61366-redis-cluster:
+    needs: test
+    runs-on: ubuntu-latest
+    # Run only on 61366-redis-cluster branch
+    if: github.ref == 'refs/heads/61366-redis-cluster'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download .jar file
+        uses: actions/download-artifact@v4
+        with:
+          name: transitdata-metro-ats-cancellation-source.jar
+          path: target
+      - name: Build and publish 61366-redis-cluster Docker image
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          name: hsldevcom/transitdata-metro-ats-cancellation-source
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: 61366-redis-cluster

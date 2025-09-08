@@ -1,6 +1,5 @@
 package fi.hsl.transitdata.metro.ats;
 
-import fi.hsl.common.redis.RedisUtils;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.InternalMessages;
 import fi.hsl.common.transitdata.proto.MetroAtsProtos;

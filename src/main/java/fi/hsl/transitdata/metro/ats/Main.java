@@ -4,11 +4,12 @@ import com.typesafe.config.Config;
 import fi.hsl.common.config.ConfigParser;
 import fi.hsl.common.pulsar.PulsarApplication;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
-import fi.hsl.common.redis.RedisUtils;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.InternalMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisSentinelPool;
 
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,13 @@ import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static fi.hsl.transitdata.metro.ats.Checks.checkEither;
+import static fi.hsl.transitdata.metro.ats.RedisClusterProperties.redisClusterProperties;
+import static redis.clients.jedis.Protocol.DEFAULT_DATABASE;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
@@ -29,7 +36,8 @@ public class Main {
 
         try (final PulsarApplication app = PulsarApplication.newInstance(config)) {
             final PulsarApplicationContext context = app.getContext();
-            final RedisUtils redis = RedisUtils.newInstance(context);
+            final JedisExecutor jedisExecutor = createJedisExecutor(context);
+            final RedisUtils redis = new RedisUtils(jedisExecutor, context.getConfig().getInt("redis.ttlSeconds"));
             final int ttl = config.getInt("application.cacheTtlOffsetSeconds");
             final MetroCancellationFactory metroCancellationFactory = new MetroCancellationFactory(redis, ttl);
             final MessageHandler handler = new MessageHandler(context, metroCancellationFactory);
@@ -117,5 +125,72 @@ public class Main {
         } catch (Exception e) {
             log.error("Exception at main", e);
         }
+    }
+
+    private static JedisExecutor createJedisExecutor(PulsarApplicationContext context) {
+        final Config config = context.getConfig();
+        final boolean redisEnabled = config.getBoolean("redis.enabled");
+        final boolean redisClusterEnabled = config.getBoolean("redisCluster.enabled");
+        checkEither(redisEnabled, redisClusterEnabled,
+                "Exactly one of 'redis.enabled' or 'redisCluster.enabled' must be true");
+
+        if (redisEnabled) {
+            final Jedis jedis = context.getJedis();
+            return new JedisExecutor() {
+                @Override
+                public <T> T execute(Function<Jedis, T> action) {
+                    synchronized (jedis) {
+                        return action.apply(jedis);
+                    }
+                }
+            };
+        } else {
+            final RedisClusterProperties properties = redisClusterProperties(config);
+            final JedisSentinelPool pool = createJedisSentinelPool(properties);
+            final JedisExecutor jedisExecutor = new JedisExecutor() {
+                @Override
+                public <T> T execute(Function<Jedis, T> action) {
+                    try (final Jedis jedis = pool.getResource()) {
+                        return action.apply(jedis);
+                    }
+                }
+            };
+
+            if (properties.healthCheck) {
+                context.getHealthServer()
+                        .addCheck(redisCustomHealthCheck(jedisExecutor));
+            }
+
+            return jedisExecutor;
+        }
+    }
+
+    private static JedisSentinelPool createJedisSentinelPool(RedisClusterProperties properties) {
+        return new JedisSentinelPool(
+                properties.masterName,
+                properties.sentinels,
+                properties.jedisPoolConfig(),
+                (int) properties.connectionTimeout.toMillis(),
+                (int) properties.socketTimeout.toMillis(),
+                null,
+                DEFAULT_DATABASE
+        );
+    }
+
+    private static BooleanSupplier redisCustomHealthCheck(JedisExecutor jedisExecutor) {
+        return () -> jedisExecutor.execute(jedis -> {
+            try {
+                final String maybePong = jedis.ping();
+                if (maybePong.equals("PONG")) {
+                    return true;
+                } else {
+                    log.error("jedis.ping() returned: {}", maybePong);
+                }
+            } catch (Exception e) {
+                log.error("Exception in custom health check for redis connection", e);
+            }
+
+            return false;
+        });
     }
 }
