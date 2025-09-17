@@ -4,7 +4,7 @@ import com.typesafe.config.Config;
 import fi.hsl.common.config.ConfigParser;
 import fi.hsl.common.pulsar.PulsarApplication;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
-import fi.hsl.common.redis.RedisUtils;
+import fi.hsl.common.redis.RedisStore;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.InternalMessages;
 import org.slf4j.Logger;
@@ -29,7 +29,7 @@ public class Main {
 
         try (final PulsarApplication app = PulsarApplication.newInstance(config)) {
             final PulsarApplicationContext context = app.getContext();
-            final RedisUtils redis = RedisUtils.newInstance(context);
+            final RedisStore redis = context.getRedisStore();
             final int ttl = config.getInt("application.cacheTtlOffsetSeconds");
             final MetroCancellationFactory metroCancellationFactory = new MetroCancellationFactory(redis, ttl);
             final MessageHandler handler = new MessageHandler(context, metroCancellationFactory);

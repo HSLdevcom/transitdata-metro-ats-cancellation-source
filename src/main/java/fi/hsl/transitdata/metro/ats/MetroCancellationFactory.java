@@ -1,6 +1,6 @@
 package fi.hsl.transitdata.metro.ats;
 
-import fi.hsl.common.redis.RedisUtils;
+import fi.hsl.common.redis.RedisStore;
 import fi.hsl.common.transitdata.TransitdataProperties;
 import fi.hsl.common.transitdata.proto.InternalMessages;
 import fi.hsl.common.transitdata.proto.MetroAtsProtos;
@@ -8,6 +8,7 @@ import org.apache.pulsar.client.api.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,11 +21,11 @@ public class MetroCancellationFactory {
     public static final String KEY_CANCELLATION_STATUS = "cancellation-status";
     public static final String KEY_TIMESTAMP = "timestamp";
 
-    private final RedisUtils redis;
+    private final RedisStore redisStore;
     private final int cacheTtlOffsetSeconds;
 
-    public MetroCancellationFactory(final RedisUtils redis, final int cacheTtlOffsetSeconds) {
-        this.redis = redis;
+    public MetroCancellationFactory(final RedisStore redisStore, final int cacheTtlOffsetSeconds) {
+        this.redisStore = redisStore;
         this.cacheTtlOffsetSeconds = cacheTtlOffsetSeconds;
     }
 
@@ -69,7 +70,7 @@ public class MetroCancellationFactory {
         } else {
             long redisQueryStartTime = System.currentTimeMillis();
             try {
-                final Optional<Map<String, String>> maybeCachedMetroCancellation = redis.getValues(metroCancellationKey);
+                final Optional<Map<String, String>> maybeCachedMetroCancellation = redisStore.getValues(metroCancellationKey);
                 if (maybeCachedMetroCancellation.isPresent()) {
                     // This is cancellation of cancellation
                     final Map<String, String> cachedMetroCancellation = maybeCachedMetroCancellation.get();
@@ -174,7 +175,7 @@ public class MetroCancellationFactory {
         final String endDateTime = metroEstimate.getEndTime();
         final long endMillis = Instant.parse(endDateTime).toEpochMilli();
         final long now = System.currentTimeMillis();
-        return (endMillis - now)/1000;
+        return (endMillis - now) / 1000;
     }
 
     private InternalMessages.TripCancellation.Status getCancellationStatus(final MetroAtsProtos.MetroEstimate metroEstimate) {
@@ -188,8 +189,8 @@ public class MetroCancellationFactory {
         final Map<String, String> data = new HashMap<>();
         data.put(KEY_CANCELLATION_STATUS, status.toString());
         data.put(KEY_TIMESTAMP, String.valueOf(timestamp));
-        final String response = redis.setExpiringValues(key, data, cacheTtlSeconds);
-        if (!redis.checkResponse(response)) {
+        final String response = redisStore.setExpiringValues(key, data, Duration.ofSeconds(cacheTtlSeconds));
+        if (!redisStore.checkResponse(response)) {
             log.error("Failed to set key {} into cache", key);
         }
     }
