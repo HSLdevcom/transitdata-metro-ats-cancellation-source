@@ -18,7 +18,7 @@ public class MetroAtsCancellationHandlerTest {
         List<MetroAtsCancellationHandler.CancellationData> emptyList = MetroAtsCancellationHandler.filterDuplicates(new LinkedList<>());
         assertTrue(emptyList.isEmpty());
     }
-
+    
     @Test
     public void testFilteringWithSingleCancellation() throws Exception {
         List<MetroAtsCancellationHandler.CancellationData> input = new LinkedList<>();
@@ -26,7 +26,7 @@ public class MetroAtsCancellationHandlerTest {
         List<MetroAtsCancellationHandler.CancellationData> result = MetroAtsCancellationHandler.filterDuplicates(input);
         assertEquals(1, result.size());
     }
-
+    
     @Test
     public void testFilteringWithSingleRunning() throws Exception {
         List<MetroAtsCancellationHandler.CancellationData> input = new LinkedList<>();
@@ -34,37 +34,37 @@ public class MetroAtsCancellationHandlerTest {
         List<MetroAtsCancellationHandler.CancellationData> result = MetroAtsCancellationHandler.filterDuplicates(input);
         assertEquals(1, result.size());
     }
-
+    
     @Test
     public void testFilteringWithBothStatusesForSameDvjId() throws Exception {
         long dvjId = MockDataUtils.generateValidJoreId();
         List<MetroAtsCancellationHandler.CancellationData> input = new LinkedList<>();
-
+    
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.CANCELED, dvjId));
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.RUNNING, dvjId));
         List<MetroAtsCancellationHandler.CancellationData> result = MetroAtsCancellationHandler.filterDuplicates(input);
         assertEquals(1, result.size());
         assertEquals(InternalMessages.TripCancellation.Status.CANCELED, result.get(0).getPayload().getStatus());
     }
-
+    
     @Test
     public void testFilteringWithMultipleRunningForSameDvjId() throws Exception {
         long dvjId = MockDataUtils.generateValidJoreId();
         List<MetroAtsCancellationHandler.CancellationData> input = new LinkedList<>();
-
+    
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.RUNNING, dvjId));
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.RUNNING, dvjId));
         List<MetroAtsCancellationHandler.CancellationData> result = MetroAtsCancellationHandler.filterDuplicates(input);
         assertEquals(1, result.size());
         assertEquals(InternalMessages.TripCancellation.Status.RUNNING, result.get(0).getPayload().getStatus());
     }
-
+    
     @Test
     public void testFilteringWithMultipleRunningForDifferentDvjId() throws Exception {
         long firstDvjId = MockDataUtils.generateValidJoreId();
         long secondDvjId = firstDvjId++;
         List<MetroAtsCancellationHandler.CancellationData> input = new LinkedList<>();
-
+    
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.RUNNING, firstDvjId));
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.RUNNING, secondDvjId));
         List<MetroAtsCancellationHandler.CancellationData> result = MetroAtsCancellationHandler.filterDuplicates(input);
@@ -72,13 +72,13 @@ public class MetroAtsCancellationHandlerTest {
         assertEquals(0, result.stream().filter(data -> data.getPayload().getStatus() == InternalMessages.TripCancellation.Status.CANCELED).count());
         assertEquals(2, result.stream().filter(data -> data.getPayload().getStatus() == InternalMessages.TripCancellation.Status.RUNNING).count());
     }
-
+    
     @Test
     public void testFilteringWithBothStatusesForDifferentDvjId() throws Exception {
         long firstDvjId = MockDataUtils.generateValidJoreId();
         long secondDvjId = firstDvjId++;
         List<MetroAtsCancellationHandler.CancellationData> input = new LinkedList<>();
-
+    
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.CANCELED, firstDvjId));
         input.add(mockCancellation(InternalMessages.TripCancellation.Status.RUNNING, secondDvjId));
         List<MetroAtsCancellationHandler.CancellationData> result = MetroAtsCancellationHandler.filterDuplicates(input);
@@ -86,13 +86,13 @@ public class MetroAtsCancellationHandlerTest {
         assertEquals(1, result.stream().filter(data -> data.getPayload().getStatus() == InternalMessages.TripCancellation.Status.CANCELED).count());
         assertEquals(1, result.stream().filter(data -> data.getPayload().getStatus() == InternalMessages.TripCancellation.Status.RUNNING).count());
     }
-
-
+    
+    
     private MetroAtsCancellationHandler.CancellationData mockCancellation(InternalMessages.TripCancellation.Status status) throws Exception {
         long dvjId = MockDataUtils.generateValidJoreId();
         return mockCancellation(status, dvjId);
     }
-
+    
     private MetroAtsCancellationHandler.CancellationData mockCancellation(InternalMessages.TripCancellation.Status status, long dvjId) throws Exception {
         InternalMessages.TripCancellation cancellation = MockDataUtils.mockTripCancellation(dvjId,
                 "7575",
