@@ -30,7 +30,10 @@ public class MessageHandler implements IMessageHandler {
                 final InternalMessages.TripCancellation cancellation = maybeTripCancellation.get();
                 final MessageId messageId = received.getMessageId();
                 final long timestamp = received.getEventTime();
-                sendPulsarMessage(messageId, cancellation, timestamp, cancellation.getTripId());
+                // "source-ts" is the pipeline-ingress timestamp propagated from the gateway; forward it
+                // so the terminal (tripupdate-processor) can measure metro trip-cancellation latency.
+                final String sourceTimestamp = received.getProperty("source-ts");
+                sendPulsarMessage(messageId, cancellation, timestamp, cancellation.getTripId(), sourceTimestamp);
             } else {
                 // Metro-estimate status was not CANCELED, not sending message.
                 ack(received.getMessageId()); //Ack so we don't receive it again
@@ -50,16 +53,20 @@ public class MessageHandler implements IMessageHandler {
     }
 
     public void sendPulsarMessage(final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
-        sendPulsarMessage(null, cancellation, timestamp, dvjId);
+        sendPulsarMessage(null, cancellation, timestamp, dvjId, null);
     }
 
-    public void sendPulsarMessage(final MessageId received, final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
-        producer.newMessage()
+    public void sendPulsarMessage(final MessageId received, final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId, final String sourceTimestamp) {
+        TypedMessageBuilder<byte[]> message = producer.newMessage()
                 .key(dvjId)
                 .eventTime(timestamp)
                 .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, TransitdataProperties.ProtobufSchema.InternalMessagesTripCancellation.toString())
                 .property(TransitdataProperties.KEY_SCHEMA_VERSION, Integer.toString(cancellation.getSchemaVersion()))
-                .property(TransitdataProperties.KEY_DVJ_ID, dvjId) // TODO remove once TripUpdateProcessor won't need it anymore
+                .property(TransitdataProperties.KEY_DVJ_ID, dvjId); // TODO remove once TripUpdateProcessor won't need it anymore
+        if (sourceTimestamp != null) {
+            message = message.property("source-ts", sourceTimestamp);
+        }
+        message
                 .value(cancellation.toByteArray())
                 .sendAsync()
                 .whenComplete((MessageId id, Throwable t) -> {
