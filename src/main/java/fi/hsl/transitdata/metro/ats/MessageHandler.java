@@ -1,5 +1,6 @@
 package fi.hsl.transitdata.metro.ats;
 
+import fi.hsl.common.metrics.PipelineMetrics;
 import fi.hsl.common.pulsar.IMessageHandler;
 import fi.hsl.common.pulsar.PulsarApplicationContext;
 import fi.hsl.common.transitdata.TransitdataProperties;
@@ -17,7 +18,8 @@ public class MessageHandler implements IMessageHandler {
     private Producer<byte[]> producer;
     private MetroCancellationFactory metroCancellationFactory;
 
-    public MessageHandler(final PulsarApplicationContext context, final MetroCancellationFactory metroCancellationFactory) {
+    public MessageHandler(final PulsarApplicationContext context,
+            final MetroCancellationFactory metroCancellationFactory) {
         consumer = context.getConsumer();
         producer = context.getProducer();
         this.metroCancellationFactory = metroCancellationFactory;
@@ -25,12 +27,14 @@ public class MessageHandler implements IMessageHandler {
 
     public void handleMessage(final Message received) throws Exception {
         try {
-            final Optional<InternalMessages.TripCancellation> maybeTripCancellation = metroCancellationFactory.toTripCancellation(received);
+            final Optional<InternalMessages.TripCancellation> maybeTripCancellation = metroCancellationFactory
+                    .toTripCancellation(received);
             if (maybeTripCancellation.isPresent()) {
                 final InternalMessages.TripCancellation cancellation = maybeTripCancellation.get();
                 final MessageId messageId = received.getMessageId();
                 final long timestamp = received.getEventTime();
-                sendPulsarMessage(messageId, cancellation, timestamp, cancellation.getTripId());
+                final long sourceTimestamp = PipelineMetrics.resolveSourceTimestampMs(received);
+                sendPulsarMessage(messageId, cancellation, timestamp, cancellation.getTripId(), sourceTimestamp);
             } else {
                 // Metro-estimate status was not CANCELED, not sending message.
                 ack(received.getMessageId()); //Ack so we don't receive it again
@@ -41,36 +45,34 @@ public class MessageHandler implements IMessageHandler {
     }
 
     private void ack(final MessageId received) {
-        consumer.acknowledgeAsync(received)
-                .exceptionally(throwable -> {
-                    log.error("Failed to ack Pulsar message", throwable);
-                    return null;
-                })
-                .thenRun(() -> {});
+        consumer.acknowledgeAsync(received).exceptionally(throwable -> {
+            log.error("Failed to ack Pulsar message", throwable);
+            return null;
+        }).thenRun(() -> {
+        });
     }
 
-    public void sendPulsarMessage(final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
-        sendPulsarMessage(null, cancellation, timestamp, dvjId);
+    public void sendPulsarMessage(final InternalMessages.TripCancellation cancellation, final long timestamp,
+            final String dvjId) {
+        sendPulsarMessage(null, cancellation, timestamp, dvjId, System.currentTimeMillis());
     }
 
-    public void sendPulsarMessage(final MessageId received, final InternalMessages.TripCancellation cancellation, final long timestamp, final String dvjId) {
-        producer.newMessage()
-                .key(dvjId)
-                .eventTime(timestamp)
-                .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA, TransitdataProperties.ProtobufSchema.InternalMessagesTripCancellation.toString())
+    public void sendPulsarMessage(final MessageId received, final InternalMessages.TripCancellation cancellation,
+            final long timestamp, final String dvjId, final long sourceTimestamp) {
+        producer.newMessage().key(dvjId).eventTime(timestamp)
+                .property(TransitdataProperties.KEY_PROTOBUF_SCHEMA,
+                        TransitdataProperties.ProtobufSchema.InternalMessagesTripCancellation.toString())
                 .property(TransitdataProperties.KEY_SCHEMA_VERSION, Integer.toString(cancellation.getSchemaVersion()))
                 .property(TransitdataProperties.KEY_DVJ_ID, dvjId) // TODO remove once TripUpdateProcessor won't need it anymore
-                .value(cancellation.toByteArray())
-                .sendAsync()
-                .whenComplete((MessageId id, Throwable t) -> {
+                .property(TransitdataProperties.KEY_SOURCE_MESSAGE_TIMESTAMP_MS, Long.toString(sourceTimestamp))
+                .value(cancellation.toByteArray()).sendAsync().whenComplete((MessageId id, Throwable t) -> {
                     if (t != null) {
                         log.error("Failed to send Pulsar message", t);
                         //Should we abort?
-                    }
-                    else {
-                        log.info("Produced a cancellation for trip: " + cancellation.getRouteId() + "/" +
-                                cancellation.getDirectionId() + "-" + cancellation.getStartTime() + "-" +
-                                cancellation.getStartDate() + " with status: " + cancellation.getStatus().toString());
+                    } else {
+                        log.info("Produced a cancellation for trip: " + cancellation.getRouteId() + "/"
+                                + cancellation.getDirectionId() + "-" + cancellation.getStartTime() + "-"
+                                + cancellation.getStartDate() + " with status: " + cancellation.getStatus().toString());
                         //Does this become a bottleneck? Does pulsar send more messages before we ack the previous one?
                         //If yes we need to get rid of this
                         if (received != null) {
